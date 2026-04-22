@@ -76,12 +76,15 @@ void putcUart0(char c)
     UART0_DR_R = c;                                  // write character to fifo
 }
 
-// Blocking function that writes a string when the UART buffer is not full
 void putsUart0(char* str)
 {
     uint8_t i = 0;
     while (str[i] != '\0')
+    {
+        if (str[i] == '\n')
+            putcUart0('\r');
         putcUart0(str[i++]);
+    }
 }
 
 // Blocking function that returns with serial data once the buffer is not empty

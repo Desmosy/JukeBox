@@ -223,7 +223,7 @@ void readConfiguration()
 
     if (readEeprom(EEPROM_DHCP) == EEPROM_ERASED)
     {
-        enableDhcp();
+        disableDhcp(); // Use static IP hardcoded in ip.c
     }
     else
     {

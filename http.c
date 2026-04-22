@@ -67,7 +67,8 @@ static void buildPage()
     httpLen = 0;
 
     hput("<html><head><title>Team 18</title>");
-    hput("<meta http-equiv=refresh content=5>");
+    hput("<meta http-equiv=refresh content=10>");
+    hput("<meta http-equiv=Cache-Control content=no-cache>");
     hput("<style>");
     hput("body{font-family:Arial;text-align:center;");
     hput("background:#1a1a2e;color:#fff;padding:20px}");
@@ -256,6 +257,15 @@ void processHttpTcpPacket(etherHeader *ether)
     uint32_t remoteSeq = ntohl(tcp->sequenceNumber);
     uint32_t remoteAck = ntohl(tcp->acknowledgementNumber);
     uint16_t dataLen = getTcpDataLength(ip, tcp);
+
+    // If a new SYN arrives while the socket is stuck in a closing state,
+    // force-reset so we can accept the new connection immediately.
+    // This prevents "connection timed out" when browsers send concurrent requests.
+    if ((flags & SYN) && httpSocket.state != TCP_CLOSED &&
+        httpSocket.state != TCP_LISTEN && httpSocket.state != TCP_SYN_RECEIVED)
+    {
+        httpSocket.state = TCP_CLOSED;
+    }
 
     switch (httpSocket.state)
     {

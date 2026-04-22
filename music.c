@@ -108,7 +108,7 @@ void castVote(uint8_t songNumber)
     // Publish the vote over MQTT so the network can see it
     char payload[4];
     snprintf(payload, sizeof(payload), "%d", songNumber);
-    publishMqtt("da_coder/feeds/cse4352", payload);
+    publishMqtt("music_vote", payload);
 
     // If this is the first vote of the round, start the 30-second voting timer
     if (!votingActive)
@@ -195,9 +195,10 @@ void voteTimerCallback()
     putsUart0("===================================\n");
 
     // Publish the winner over MQTT
-    // The Python script on the laptop is subscribed to music_play
-    // and will play the corresponding audio file
-    publishMqtt("music_play", (char*)songNames[winner - 1]);
+    // Send the song NUMBER so the Python script can always match it
+    char winnerStr[4];
+    snprintf(winnerStr, sizeof(winnerStr), "%d", winner);
+    publishMqtt("music_play", winnerStr);
 
     // Lock voting until manual reset
     votingLocked = true;

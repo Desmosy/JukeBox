@@ -4,19 +4,14 @@ import os
 import sys
 import time
 
-BROKER_IP = "192.168.1.131"
+BROKER_IP = "192.168.1.59"
 BROKER_PORT = 1883
-# Client ID should be unique for each person connecting
 CLIENT_ID = "koshish_laptop"
 
-# The main feed topic from the whiteboard
-FRIEND_FEED      = "da_coder/feeds/cse4352"
-
-# Map your internal music topics to sub-topics or use the main one
-# For now, let's listen to the main one your friend gave you
 FEED_PLAY        = "music_play"
 FEED_STOP        = "music_stop"
 FEED_VOTE        = "music_vote"
+FEED_SHOW        = "music_show_playing"
 
 SONGS = {
     "Song 1": "song1.mp3",
@@ -24,34 +19,38 @@ SONGS = {
     "Song 3": "song3.mp3",
 }
 
-def on_connect(client, userdata, flags, rc):
-    if rc == 0:
-        print(f"[MQTT] Connected to Broker at {BROKER_IP}!")
+def on_connect(client, userdata, flags, reason_code, properties):
+    if reason_code == 0:
+        print(f"[MQTT] Connected to Mosquitto Broker at {BROKER_IP}!")
         print(f"[MQTT] Using ClientID: {CLIENT_ID}")
-        # Subscribe to the specific feed from the board
-        client.subscribe(FRIEND_FEED)
-        # Also subscribe to your own internal topics
+        # Subscribe to the music control topics
         client.subscribe(FEED_PLAY)
         client.subscribe(FEED_STOP)
-        print(f"[MQTT] Subscribed to {FRIEND_FEED}, {FEED_PLAY}, etc.")
+        client.subscribe(FEED_VOTE)
+        client.subscribe(FEED_SHOW)
+        print(f"[MQTT] Subscribed to {FEED_PLAY}, {FEED_STOP}, {FEED_VOTE}, {FEED_SHOW}")
     else:
-        print(f"[MQTT] Connection failed with code {rc}")
+        print(f"[MQTT] Connection failed with code {reason_code}")
 
 def on_message(client, userdata, msg):
     topic = msg.topic
     payload = msg.payload.decode("utf-8", errors="replace")
     print(f"[MQTT] {topic} : {payload}")
 
-    # If your friend sends the song name to the cse4352 topic
-    if topic == FRIEND_FEED or topic == FEED_PLAY:
+    if topic == FEED_PLAY:
         play_song(client, payload)
 
     elif topic == FEED_STOP:
         stop_song(client)
 
+    elif topic == FEED_VOTE:
+        print(f"  [VOTE] Received vote for song: {payload}")
+
+    elif topic == FEED_SHOW:
+        print(f"  [NOW PLAYING] {payload}")
+
 def play_song(client, song_name):
     song_name = song_name.strip()
-    # If he just sends "1", "2", or "3", we convert it to "Song X"
     if song_name in ["1", "2", "3"]:
         song_name = f"Song {song_name}"
 
@@ -77,14 +76,12 @@ def stop_song(client):
 
 def main():
     print("=" * 60)
-    print(f"  Team 18 - Music Player (Whiteboard Config)")
+    print(f"  Team 18 - Music Player (Mosquitto Broker)")
     print(f"  Connecting to: {BROKER_IP}")
     print("=" * 60)
 
     pygame.mixer.init()
     
-    # Initialize client with unique ID and latest API version
-    # Note: Use CallbackAPIVersion.VERSION1 if using an older library version
     from paho.mqtt.enums import CallbackAPIVersion
     client = mqtt.Client(CallbackAPIVersion.VERSION2, client_id=CLIENT_ID)
 
