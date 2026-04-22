@@ -108,7 +108,7 @@ void castVote(uint8_t songNumber)
     // Publish the vote over MQTT so the network can see it
     char payload[4];
     snprintf(payload, sizeof(payload), "%d", songNumber);
-    publishMqtt("music_vote", payload);
+    publishMqtt("da_coder/feeds/cse4352", payload);
 
     // If this is the first vote of the round, start the 30-second voting timer
     if (!votingActive)

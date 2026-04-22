@@ -59,7 +59,7 @@ uint8_t getTcpState(uint8_t instance)
     return tcpState[instance];
 }
 
-// Extract flags from the offsetFields word (lower 9 bits after byte swap)
+// get the 9 tcp flags 
 uint16_t getTcpFlags(tcpHeader *tcp)
 {
     return ntohs(tcp->offsetFields) & 0x01FF;
@@ -82,7 +82,7 @@ uint16_t getTcpDataLength(ipHeader *ip, tcpHeader *tcp)
 }
 
 // Determines whether packet is TCP packet
-// Must be an IP packet. Validates protocol field and TCP checksum.
+// Must be an IP packet. 
 bool isTcp(etherHeader* ether)
 {
     ipHeader *ip = (ipHeader*)ether->data;
@@ -90,7 +90,7 @@ bool isTcp(etherHeader* ether)
     bool ok;
     uint32_t sum = 0;
 
-    ok = (ip->protocol == PROTOCOL_TCP);
+    ok = (ip->protocol == PROTOCOL_TCP); //if 6 
     if (ok)
     {
         // Verify TCP checksum using pseudo-header
@@ -465,17 +465,19 @@ void sendTcpPendingMessages(etherHeader *ether)
 {
     socket *ms = getMqttSocket();
 
-    if (tcpConnectPending)
-    {
-        // We need the broker's MAC — send an ARP request
+    //we do not know the mac 
+    if (tcpConnectPending) //set true by our uart command 
+    {   
+        //send an arp request 
         uint8_t localIp[IP_ADD_LENGTH];
         getIpAddress(localIp);
         sendArpRequest(ether, localIp, ms->remoteIpAddress);
+
         tcpConnectPending = false;
         tcpArpWaiting = true;
         putsUart0("TCP: ARP request sent for broker\n");
     }
-    if (tcpSynPending)
+    if (tcpSynPending) //check if we have the mac
     {
         // We know the MAC, send the SYN to begin the TCP handshake
         sendTcpMessage(ether, ms, SYN, NULL, 0);

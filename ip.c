@@ -28,7 +28,8 @@ uint8_t ipSubnetMask[IP_ADD_LENGTH] = {0,0,0,0};
 uint8_t ipGwAddress[IP_ADD_LENGTH] = {0,0,0,0};
 uint8_t ipDnsAddress[IP_ADD_LENGTH] = {0,0,0,0};
 uint8_t ipTimeServerAddress[IP_ADD_LENGTH] = {0,0,0,0};
-uint8_t ipMqttBrokerAddress[IP_ADD_LENGTH] = {0,0,0,0};
+uint8_t ipMqttBrokerAddress[IP_ADD_LENGTH] = {192, 168, 1, 131}; 
+
 
 // ------------------------------------------------------------------------------
 //  Structures

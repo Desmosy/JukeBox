@@ -42,6 +42,10 @@
 // MQTT keep-alive interval in seconds
 #define MQTT_KEEPALIVE_S 60
 
+// Max lengths for MQTT username and password (for Adafruit IO, etc.)
+#define MQTT_MAX_USER 32
+#define MQTT_MAX_PASS 48
+
 //-----------------------------------------------------------------------------
 // Subroutines
 //-----------------------------------------------------------------------------
@@ -51,6 +55,7 @@ bool isMqttConnected();
 
 void connectMqtt();
 void disconnectMqtt();
+void setMqttCredentials(const char *user, const char *pass);
 void publishMqtt(char strTopic[], char strData[]);
 void subscribeMqtt(char strTopic[]);
 void unsubscribeMqtt(char strTopic[]);

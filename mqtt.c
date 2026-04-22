@@ -42,6 +42,10 @@ bool mqttConnected = false;
 // without needing ether passed as a parameter
 static etherHeader *mqttEtherPtr = NULL;
 
+// MQTT credentials for authenticated brokers (e.g. Adafruit IO)
+static char mqttUsername[MQTT_MAX_USER] = "";
+static char mqttPassword[MQTT_MAX_PASS] = "";
+
 // Flag to indicate MQTT CONNECT should be sent after TCP ESTABLISHED
 // (not needed anymore since tcp.c calls sendMqttConnect directly,
 //  but kept for reference)
@@ -99,6 +103,24 @@ void connectMqtt()
     putsUart0("MQTT: Connecting to broker...\n");
 }
 
+// Set MQTT username and password for authenticated brokers
+// Call this before "mqtt connect" if using Adafruit IO
+void setMqttCredentials(const char *user, const char *pass)
+{
+    uint8_t i;
+    for (i = 0; i < MQTT_MAX_USER - 1 && user[i] != '\0'; i++)
+        mqttUsername[i] = user[i];
+    mqttUsername[i] = '\0';
+
+    for (i = 0; i < MQTT_MAX_PASS - 1 && pass[i] != '\0'; i++)
+        mqttPassword[i] = pass[i];
+    mqttPassword[i] = '\0';
+
+    putsUart0("MQTT: Credentials set (user=");
+    putsUart0(mqttUsername);
+    putsUart0(")\n");
+}
+
 // --- MQTT CONNECT packet ---
 // Called by tcp.c once the TCP 3-way handshake completes.
 // Builds the CONNECT packet per MQTT v3.1.1 spec and sends it.
@@ -109,11 +131,17 @@ void sendMqttConnect(etherHeader *ether)
 
     char *clientId = "tm4c-kiosk";
     uint8_t clientIdLen = strlen(clientId);
+    uint8_t usernameLen = strlen(mqttUsername);
+    uint8_t passwordLen = strlen(mqttPassword);
+    bool useAuth = (usernameLen > 0 && passwordLen > 0);
 
     // Variable header (10 bytes) + Payload (2 + clientIdLen)
+    // If auth: + (2 + usernameLen) + (2 + passwordLen)
     uint16_t remainingLength = 10 + 2 + clientIdLen;
+    if (useAuth)
+        remainingLength += 2 + usernameLen + 2 + passwordLen;
 
-    uint8_t mqttData[64];
+    uint8_t mqttData[128];
     uint8_t idx = 0;
     uint8_t i;
 
@@ -132,8 +160,13 @@ void sendMqttConnect(etherHeader *ether)
     // Protocol Level: 4 = MQTT v3.1.1
     mqttData[idx++] = 0x04;
 
-    // Connect Flags: Clean Session = 1, no will, no user/pw
-    mqttData[idx++] = 0x02;
+    // Connect Flags:
+    //   0x02 = Clean Session only
+    //   0xC2 = Username + Password + Clean Session
+    if (useAuth)
+        mqttData[idx++] = 0xC2;
+    else
+        mqttData[idx++] = 0x02;
 
     // Keep Alive (seconds), MSB first
     mqttData[idx++] = HIBYTE(MQTT_KEEPALIVE_S);
@@ -145,9 +178,27 @@ void sendMqttConnect(etherHeader *ether)
     for (i = 0; i < clientIdLen; i++)
         mqttData[idx++] = clientId[i];
 
+    // Payload: Username (only if auth is enabled)
+    if (useAuth)
+    {
+        mqttData[idx++] = 0x00;
+        mqttData[idx++] = usernameLen;
+        for (i = 0; i < usernameLen; i++)
+            mqttData[idx++] = mqttUsername[i];
+
+        // Payload: Password (AIO key)
+        mqttData[idx++] = 0x00;
+        mqttData[idx++] = passwordLen;
+        for (i = 0; i < passwordLen; i++)
+            mqttData[idx++] = mqttPassword[i];
+    }
+
     // Send via TCP with PSH+ACK
     sendTcpMessage(ether, &mqttSocket, PSH | ACK, mqttData, idx);
-    putsUart0("MQTT: CONNECT sent\n");
+    putsUart0("MQTT: CONNECT sent");
+    if (useAuth)
+        putsUart0(" (with auth)");
+    putsUart0("\n");
 }
 
 // --- DISCONNECT ---

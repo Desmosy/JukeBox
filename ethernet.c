@@ -362,6 +362,15 @@ void processShell()
                     if (topic != NULL)
                         unsubscribeMqtt(topic);
                 }
+                if (strcmp(token, "auth") == 0)
+                {
+                    char *user = strtok(NULL, " ");
+                    char *pass = strtok(NULL, " ");
+                    if (user != NULL && pass != NULL)
+                        setMqttCredentials(user, pass);
+                    else
+                        putsUart0("Usage: mqtt auth USERNAME AIO_KEY\n");
+                }
             }
             if (strcmp(token, "ip") == 0)
             {
@@ -482,9 +491,10 @@ void processShell()
             {
                 putsUart0("Commands:\n");
                 putsUart0("  dhcp on|off|renew|release\n");
-                putsUart0("  mqtt ACTION [USER [PASSWORD]]\n");
-                putsUart0("    where ACTION = {connect|disconnect|publish TOPIC DATA\n");
-                putsUart0("                   |subscribe TOPIC|unsubscribe TOPIC}\n");
+                putsUart0("  mqtt ACTION\n");
+                putsUart0("    connect|disconnect|publish TOPIC DATA\n");
+                putsUart0("    subscribe TOPIC|unsubscribe TOPIC\n");
+                putsUart0("    auth USERNAME AIO_KEY  (for Adafruit IO)\n");
                 putsUart0("  vote 1|2|3           Vote for a song\n");
                 putsUart0("  music status         Show voting status\n");
                 putsUart0("  music reset          Clear all votes\n");
