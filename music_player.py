@@ -1,110 +1,113 @@
-import paho.mqtt.client as mqtt
+import serial
 import pygame
 import os
 import sys
 import time
+import threading
+import queue
 
-BROKER_IP = "192.168.1.59"
-BROKER_PORT = 1883
-CLIENT_ID = "koshish_laptop"
-
-FEED_PLAY        = "music_play"
-FEED_STOP        = "music_stop"
-FEED_VOTE        = "music_vote"
-FEED_SHOW        = "music_show_playing"
+PORT = "COM9"
+BAUD = 115200
 
 SONGS = {
-    "Song 1": "song1.mp3",
-    "Song 2": "song2.mp3",
-    "Song 3": "song3.mp3",
+    "1": "song1.mp3",
+    "2": "song2.mp3",
+    "3": "song3.mp3",
 }
 
-def on_connect(client, userdata, flags, reason_code, properties):
-    if reason_code == 0:
-        print(f"[MQTT] Connected to Mosquitto Broker at {BROKER_IP}!")
-        print(f"[MQTT] Using ClientID: {CLIENT_ID}")
-        # Subscribe to the music control topics
-        client.subscribe(FEED_PLAY)
-        client.subscribe(FEED_STOP)
-        client.subscribe(FEED_VOTE)
-        client.subscribe(FEED_SHOW)
-        print(f"[MQTT] Subscribed to {FEED_PLAY}, {FEED_STOP}, {FEED_VOTE}, {FEED_SHOW}")
-    else:
-        print(f"[MQTT] Connection failed with code {reason_code}")
+cmd_queue = queue.Queue()
 
-def on_message(client, userdata, msg):
-    topic = msg.topic
-    payload = msg.payload.decode("utf-8", errors="replace")
-    print(f"[MQTT] {topic} : {payload}")
+def input_thread():
+    print("  Type any TM4C command and press Enter")
+    print("-" * 60)
+    while True:
+        try:
+            line = input()
+            cmd_queue.put(line)
+        except (EOFError, KeyboardInterrupt):
+            cmd_queue.put(None)
+            break
 
-    if topic == FEED_PLAY:
-        play_song(client, payload)
-
-    elif topic == FEED_STOP:
-        stop_song(client)
-
-    elif topic == FEED_VOTE:
-        print(f"  [VOTE] Received vote for song: {payload}")
-
-    elif topic == FEED_SHOW:
-        print(f"  [NOW PLAYING] {payload}")
-
-def play_song(client, song_name):
-    song_name = song_name.strip()
-    if song_name in ["1", "2", "3"]:
-        song_name = f"Song {song_name}"
-
-    if song_name not in SONGS:
-        print(f"  [PLAYER] Unknown song/command: \"{song_name}\"")
-        return
-
-    filename = SONGS[song_name]
-    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
-
-    if not os.path.exists(filepath):
-        print(f"  [PLAYER] File not found: {filepath}")
-        return
-
-    pygame.mixer.music.stop()
-    print(f"  [PLAYER] >>> NOW PLAYING: {song_name} <<<")
-    pygame.mixer.music.load(filepath)
-    pygame.mixer.music.play()
-
-def stop_song(client):
-    pygame.mixer.music.stop()
-    print("  [PLAYER] Music stopped")
+def send_cmd(ser, cmd):
+    ser.write((cmd + "\r").encode("utf-8"))
+    print(f"[CMD] -> {cmd}")
 
 def main():
     print("=" * 60)
-    print(f"  Team 18 - Music Player (Mosquitto Broker)")
-    print(f"  Connecting to: {BROKER_IP}")
+    print("  Team 18 - Music Player")
+    print(f"  Listening on {PORT} at {BAUD} baud")
     print("=" * 60)
 
     pygame.mixer.init()
-    
-    from paho.mqtt.enums import CallbackAPIVersion
-    client = mqtt.Client(CallbackAPIVersion.VERSION2, client_id=CLIENT_ID)
 
-    client.on_connect = on_connect
-    client.on_message = on_message
+    t = threading.Thread(target=input_thread, daemon=True)
+    t.start()
 
-    print(f"[MQTT] Connecting to {BROKER_IP}...")
+    while True:
+        try:
+            ser = serial.Serial(PORT, BAUD, timeout=1)
+            print(f"[SERIAL] Opened {PORT}, waiting for TM4C...\n")
+
+            while True:
+                # Handle user input (non-blocking)
+                try:
+                    cmd = cmd_queue.get_nowait()
+                    if cmd is None:
+                        raise KeyboardInterrupt
+                    # Shortcuts
+                    if cmd == 'r':
+                        send_cmd(ser, "music reset")
+                    elif cmd == 'i':
+                        send_cmd(ser, "ip")
+                    elif cmd in ('1', '2', '3'):
+                        send_cmd(ser, f"mqtt publish music_play {cmd}")
+                    elif cmd == 'q':
+                        raise KeyboardInterrupt
+                    elif cmd.strip():
+                        send_cmd(ser, cmd)  
+                except queue.Empty:
+                    pass
+
+                # Read serial line
+                raw = ser.readline()
+                if not raw:
+                    continue
+
+                line = raw.decode("utf-8", errors="replace").strip()
+                if line:
+                    print(f"[TM4C] {line}")
+
+                if line.startswith("PLAY:"):
+                    num = line[5:].strip()
+                    if num in SONGS:
+                        filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), SONGS[num])
+                        if os.path.exists(filepath):
+                            pygame.mixer.music.stop()
+                            pygame.mixer.music.load(filepath)
+                            pygame.mixer.music.play()
+                            print(f"  [PLAYER]: NOW PLAYING: Song {num}")
+                        else:
+                            print(f"  [PLAYER] File not found: {filepath}")
+
+                elif line == "STOP":
+                    pygame.mixer.music.stop()
+                    print("  [PLAYER] Music stopped")
+
+        except serial.SerialException as e:
+            print(f"[SERIAL] Lost connection ({e}):  retrying in 3s...")
+            time.sleep(3)
+            continue
+
+        except KeyboardInterrupt:
+            print("\nShutting down...")
+            break
+
+    pygame.mixer.music.stop()
+    pygame.quit()
     try:
-        client.connect(BROKER_IP, BROKER_PORT, 60)
-    except Exception as e:
-        print(f"[MQTT] ERROR: Could not connect - {e}")
-        sys.exit(1)
-
-    try:
-        client.loop_forever()
-    except KeyboardInterrupt:
-        print("\nShutting down...")
-        pygame.mixer.music.stop()
-        client.disconnect()
-        pygame.quit()
+        ser.close()
+    except Exception:
+        pass
 
 if __name__ == "__main__":
     main()
-
-
-

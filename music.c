@@ -1,23 +1,3 @@
-// Music Voting Library
-// Team 18 - Web Server Team 2
-
-//-----------------------------------------------------------------------------
-// Hardware Target
-//-----------------------------------------------------------------------------
-
-// Target Platform: EK-TM4C123GXL w/ ENC28J60
-// Target uC:       TM4C123GH6PM
-// System Clock:    40 MHz
-
-// No external hardware needed for music.
-// The TM4C manages voting and publishes the winner via MQTT.
-// A Python script on the laptop subscribes to music_play and
-// plays the actual audio files.
-
-//-----------------------------------------------------------------------------
-// Device includes, defines, and assembler directives
-//-----------------------------------------------------------------------------
-
 #include <stdio.h>
 #include <string.h>
 #include "music.h"
@@ -25,11 +5,7 @@
 #include "uart0.h"
 #include "timer.h"
 
-// ------------------------------------------------------------------------------
-//  Globals
-// ------------------------------------------------------------------------------
-
-// Song names (configurable via MQTT with music_set_name_1/2/3)
+// Song names 
 char songNames[NUM_SONGS][MAX_SONG_NAME] = {
     "Song 1",
     "Song 2",
@@ -48,14 +24,10 @@ bool votingActive = false;
 // Whether voting is locked (timer expired, waiting for reset)
 bool votingLocked = false;
 
-// Winning song number from last round (1-3, or 0 if none)
+// Winning song number from last round 
 uint8_t lastWinner = 0;
 
-// ------------------------------------------------------------------------------
-//  Subroutines
-// ------------------------------------------------------------------------------
-
-// Initialize the music voting system (no hardware needed)
+// Initialize the music voting system 
 void initMusic()
 {
     putsUart0("Music: Voting system ready\n");
@@ -139,6 +111,7 @@ void resetVotes()
 
     // Publish music_stop so the Python script stops playing
     publishMqtt("music_stop", "");
+    putsUart0("STOP\n");
 }
 
 // Tally votes and return the winning song number (1-3), or 0 if no votes
@@ -170,7 +143,7 @@ void voteTimerCallback()
 {
     char str[80];
 
-    putsUart0("\n========== VOTING CLOSED ==========\n");
+    putsUart0("\nVOTING CLOSED\n");
 
     // Display results
     uint8_t i;
@@ -192,13 +165,21 @@ void voteTimerCallback()
 
     snprintf(str, sizeof(str), "  >> WINNER: Song %d (%s)!\n", winner, songNames[winner - 1]);
     putsUart0(str);
-    putsUart0("===================================\n");
 
     // Publish the winner over MQTT
     // Send the song NUMBER so the Python script can always match it
     char winnerStr[4];
     snprintf(winnerStr, sizeof(winnerStr), "%d", winner);
     publishMqtt("music_play", winnerStr);
+
+    // If MQTT is not connected the broker won't echo music_play back,
+    // so emit PLAY: directly as a fallback
+    if (!isMqttConnected())
+    {
+        putsUart0("PLAY:");
+        putsUart0(winnerStr);
+        putsUart0("\n");
+    }
 
     // Lock voting until manual reset
     votingLocked = true;
@@ -255,6 +236,4 @@ void displayMusicStatus()
         putsUart0("  Voting: ACTIVE (timer running)\n");
     else
         putsUart0("  Voting: IDLE (vote to start)\n");
-
-    putsUart0("---------------------------\n");
 }

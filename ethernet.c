@@ -555,6 +555,8 @@ int main(void)
     setPinValue(GREEN_LED, 0);
     waitMicrosecond(100000);
 
+    startOneshotTimer(connectMqtt, 3); //auto connect
+
     // Main Loop
     // RTOS and interrupts would greatly improve this code,
     // but the goal here is simplicity
@@ -652,7 +654,7 @@ int main(void)
                         if (strcmp((char*)udpData, "off") == 0)
                             setPinValue(GREEN_LED, 0);
                         getSocketInfoFromUdpPacket(data, &s);
-                        sendUdpMessage(data, s, (uint8_t*)"Received", 9);
+                        //sendUdpMessage(data, s, (uint8_t*)"Received", 9);
                     }
                 }
             }

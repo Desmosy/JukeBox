@@ -1,12 +1,3 @@
-// HTTP Web Server Library
-// Team 18 - Web Server Team 2
-//
-// Target Platform: EK-TM4C123GXL w/ ENC28J60
-// Target uC:       TM4C123GH6PM
-// System Clock:    40 MHz
-//
-// Serves a voting kiosk web page on port 80.
-
 #include <stdio.h>
 #include <string.h>
 #include "http.h"
@@ -258,9 +249,6 @@ void processHttpTcpPacket(etherHeader *ether)
     uint32_t remoteAck = ntohl(tcp->acknowledgementNumber);
     uint16_t dataLen = getTcpDataLength(ip, tcp);
 
-    // If a new SYN arrives while the socket is stuck in a closing state,
-    // force-reset so we can accept the new connection immediately.
-    // This prevents "connection timed out" when browsers send concurrent requests.
     if ((flags & SYN) && httpSocket.state != TCP_CLOSED &&
         httpSocket.state != TCP_LISTEN && httpSocket.state != TCP_SYN_RECEIVED)
     {

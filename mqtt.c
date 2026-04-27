@@ -121,15 +121,13 @@ void setMqttCredentials(const char *user, const char *pass)
     putsUart0(")\n");
 }
 
-// --- MQTT CONNECT packet ---
 // Called by tcp.c once the TCP 3-way handshake completes.
 // Builds the CONNECT packet per MQTT v3.1.1 spec and sends it.
 void sendMqttConnect(etherHeader *ether)
 {
-    // Save ether pointer for later use by publish/subscribe
     mqttEtherPtr = ether;
 
-    char *clientId = "tm4c-kiosk";
+    char *clientId = "music";
     uint8_t clientIdLen = strlen(clientId);
     uint8_t usernameLen = strlen(mqttUsername);
     uint8_t passwordLen = strlen(mqttPassword);
@@ -418,6 +416,9 @@ void processMqttResponse(etherHeader *ether, uint8_t *data, uint16_t length)
                     subscribeMqtt("music_set_name_2");
                     subscribeMqtt("music_set_name_3");
                     subscribeMqtt("music_show_playing");
+                    subscribeMqtt("music_play");
+                    subscribeMqtt("music_stop");
+                    subscribeMqtt("music_reset");
                 }
                 else
                 {
@@ -499,6 +500,20 @@ void processMqttResponse(etherHeader *ether, uint8_t *data, uint16_t length)
                 putsUart0("Music: Now playing -> ");
                 putsUart0(payload);
                 putsUart0("\n");
+            }
+            else if (strcmp(topic, "music_play") == 0)
+            {
+                // payload is "1", "2", or "3"
+                if (payload[0] >= '1' && payload[0] <= '3')
+                {
+                    putsUart0("PLAY:");
+                    putcUart0(payload[0]);
+                    putsUart0("\n");
+                }
+            }
+            else if (strcmp(topic, "music_stop") == 0 || strcmp(topic, "music_reset") == 0)
+            {
+                resetVotes();
             }
 
             // If QoS 1, send PUBACK

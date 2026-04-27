@@ -30,14 +30,15 @@
 
 #define MAX_TCP_PORTS 4
 
-uint16_t tcpPorts[MAX_TCP_PORTS];
-uint8_t tcpPortCount = 0;
-uint8_t tcpState[MAX_TCP_PORTS];
+uint16_t tcpPorts[MAX_TCP_PORTS]; // total number of port
+uint8_t tcpPortCount = 0; //ports count
+uint8_t tcpState[MAX_TCP_PORTS]; // state of the port 
 
 // Pending connection flags
-bool tcpConnectPending = false;
-bool tcpSynPending = false;
-bool tcpArpWaiting = false;
+bool tcpConnectPending = false; //find the mac address
+bool tcpArpWaiting = false; // waiting for the mac
+bool tcpSynPending = false;  // have the mac address, send the syn
+
 
 // ------------------------------------------------------------------------------
 //  Structures
@@ -61,17 +62,19 @@ uint8_t getTcpState(uint8_t instance)
 
 // get the 9 tcp flags 
 uint16_t getTcpFlags(tcpHeader *tcp)
-{
+{   
+    //bit mask and to get the last 9 bits of the offset
     return ntohs(tcp->offsetFields) & 0x01FF;
 }
 
 // Get TCP header length in bytes from the data offset field
 uint16_t getTcpHeaderLength(tcpHeader *tcp)
 {
+    // here one word is like 4 bytes 
     return ((ntohs(tcp->offsetFields) >> 12) & 0x0F) * 4;
 }
 
-// Get TCP payload data length
+// Get size of the payload 
 // Total TCP segment length (from IP) minus the TCP header size
 uint16_t getTcpDataLength(ipHeader *ip, tcpHeader *tcp)
 {
@@ -85,14 +88,15 @@ uint16_t getTcpDataLength(ipHeader *ip, tcpHeader *tcp)
 // Must be an IP packet. 
 bool isTcp(etherHeader* ether)
 {
-    ipHeader *ip = (ipHeader*)ether->data;
+    ipHeader *ip = (ipHeader*)ether->data; //inside ether get the data
+    //ip->SourceIp , protocol..
     uint8_t ipHeaderLength = ip->size * 4;
     bool ok;
     uint32_t sum = 0;
 
-    ok = (ip->protocol == PROTOCOL_TCP); //if 6 
+    ok = (ip->protocol == PROTOCOL_TCP); //if 6 then it is tcp 
     if (ok)
-    {
+    { 
         // Verify TCP checksum using pseudo-header
         tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
         uint16_t tcpLength = ntohs(ip->length) - ipHeaderLength;
@@ -107,7 +111,7 @@ bool isTcp(etherHeader* ether)
         sumIpWords(&tmp, 2, &sum);
         // Sum over entire TCP segment (header + data)
         sumIpWords(tcp, tcpLength, &sum);
-        ok = (getIpChecksum(sum) == 0);
+        ok = (getIpChecksum(sum) == 0); // if 0 uncorrupted data 
     }
     return ok;
 }
@@ -135,6 +139,7 @@ bool isTcpFin(etherHeader *ether)
 {
     ipHeader *ip = (ipHeader*)ether->data;
     uint8_t ipHeaderLength = ip->size * 4;
+    //skip past the ip header to get into the tcp packet
     tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
     return (getTcpFlags(tcp) & FIN) != 0;
 }
@@ -165,12 +170,14 @@ bool isTcpPortOpen(etherHeader *ether)
     tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
     uint16_t destPort = ntohs(tcp->destPort);
     uint8_t i;
+    //check if the port is there 
     for (i = 0; i < tcpPortCount; i++)
     {
         if (destPort == tcpPorts[i])
             return true;
     }
     // Also match if this packet is for our active MQTT connection
+    //looking at the return address port 
     socket *ms = getMqttSocket();
     if (ms->state != TCP_CLOSED && destPort == ms->localPort)
         return true;
@@ -181,25 +188,24 @@ bool isTcpPortOpen(etherHeader *ether)
 }
 
 // Build and send a TCP segment.
-// This constructs Ethernet + IP + TCP headers, appends optional data,
-// calculates all checksums, and sends the packet via the ENC28J60.
 void sendTcpMessage(etherHeader *ether, socket *s, uint16_t flags, uint8_t data[], uint16_t dataSize)
 {
     uint8_t i;
-    uint16_t j;  // Use 16-bit counter for data copy (payloads can exceed 255 bytes)
+    uint16_t j; 
+    //blank array of 6 slots for tm4c mac address 
     uint8_t localHwAddress[HW_ADD_LENGTH];
+    //blank array of 4 slots for tm4c ip address 
     uint8_t localIpAddress[IP_ADD_LENGTH];
 
-    // --- Ethernet header ---
-    getEtherMacAddress(localHwAddress);
+    getEtherMacAddress(localHwAddress); //correct mac address 
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        ether->destAddress[i] = s->remoteHwAddress[i];
-        ether->sourceAddress[i] = localHwAddress[i];
+        ether->destAddress[i] = s->remoteHwAddress[i]; // to 
+        ether->sourceAddress[i] = localHwAddress[i]; // on the ethernet mailbag from 
     }
+    //ethernet moves from mac a to b, so this is for ipv4
     ether->frameType = htons(TYPE_IP);
 
-    // --- IP header ---
     ipHeader *ip = (ipHeader*)ether->data;
     ip->rev = 0x4;                             // IPv4
     ip->size = 0x5;                            // 20-byte IP header, no options
@@ -215,13 +221,14 @@ void sendTcpMessage(etherHeader *ether, socket *s, uint16_t flags, uint8_t data[
     ip->protocol = PROTOCOL_TCP;
     ip->headerChecksum = 0;
     getIpAddress(localIpAddress);
+    //writing the ip address to and from 
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
         ip->sourceIp[i] = localIpAddress[i];
         ip->destIp[i] = s->remoteIpAddress[i];
     }
 
-    // --- TCP header ---
+    // tcp header
     tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + (ip->size * 4));
     tcp->sourcePort = htons(s->localPort);
     tcp->destPort = htons(s->remotePort);
@@ -236,7 +243,7 @@ void sendTcpMessage(etherHeader *ether, socket *s, uint16_t flags, uint8_t data[
         dataOffset = 5;    // 20 bytes / 4 = 5 words
     tcp->offsetFields = htons((dataOffset << OFS_SHIFT) | flags);
 
-    tcp->windowSize = htons(1460);
+    tcp->windowSize = htons(1460); //max 1460 bytes at once
     tcp->checksum = 0;
     tcp->urgentPointer = 0;
 
@@ -245,25 +252,23 @@ void sendTcpMessage(etherHeader *ether, socket *s, uint16_t flags, uint8_t data[
     if (flags & SYN)
     {
         uint8_t *options = tcp->data;
-        options[0] = 2;                        // MSS option kind
-        options[1] = 4;                        // MSS option length
-        options[2] = HIBYTE(1460);             // MSS value high byte
-        options[3] = LOBYTE(1460);             // MSS value low byte
-        tcpData = options + 4;
+        options[0] = 2;                        
+        options[1] = 4;                       
+        options[2] = HIBYTE(1460);            
+        options[3] = LOBYTE(1460);            
+        tcpData = options + 4; //move the pointer 4 spaces to the right 
     }
     else
     {
-        tcpData = tcp->data;
+        tcpData = tcp->data; //put the actual data at start 
     }
 
-    // Copy application data into the TCP payload area
+    // Copy application data  like our html data into the TCP payload area
     for (j = 0; j < dataSize; j++)
         tcpData[j] = data[j];
-
-    // --- Calculate IP header checksum ---
     calcIpChecksum(ip);
 
-    // --- Calculate TCP checksum over pseudo-header + TCP segment ---
+    //we run the same anti corruption verification again 
     uint32_t sum = 0;
     uint16_t tmp;
     // Pseudo-header: source IP + dest IP (8 bytes)
@@ -278,11 +283,9 @@ void sendTcpMessage(etherHeader *ether, socket *s, uint16_t flags, uint8_t data[
     sumIpWords(tcp, tcpHeaderSize + dataSize, &sum);
     tcp->checksum = getIpChecksum(sum);
 
-    // --- Send the packet ---
-    // Total frame = 14 (Ether) + 20 (IP) + tcpHeaderSize + dataSize
+    // put this data to enc ... Total frame = 14 (Ether) + 20 (IP) + tcpHeaderSize + dataSize
     putEtherPacket(ether, 14 + 20 + tcpHeaderSize + dataSize);
 
-    // --- Update sequence number for next outgoing message ---
     // SYN and FIN each consume 1 sequence number
     if (flags & SYN)
         s->sequenceNumber += 1;
@@ -293,31 +296,28 @@ void sendTcpMessage(etherHeader *ether, socket *s, uint16_t flags, uint8_t data[
         s->sequenceNumber += dataSize;
 }
 
-// Shortcut: send an empty TCP control segment (e.g. ACK, RST, FIN)
 void sendTcpResponse(etherHeader *ether, socket* s, uint16_t flags)
 {
     sendTcpMessage(ether, s, flags, NULL, 0);
 }
 
 // TCP state machine — processes incoming TCP packets for the MQTT connection
-//
-// Implements the client-side FSM from RFC 793:
 //   CLOSED → SYN_SENT → ESTABLISHED → FIN_WAIT_1 → FIN_WAIT_2 → TIME_WAIT → CLOSED
-//   ESTABLISHED → CLOSE_WAIT → LAST_ACK → CLOSED  (passive close)
+//   ESTABLISHED → CLOSE_WAIT → LAST_ACK → CLOSED  
 void processTcpResponse(etherHeader *ether)
 {
     ipHeader *ip = (ipHeader*)ether->data;
     uint8_t ipHeaderLength = ip->size * 4;
     tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
 
-    uint16_t flags = getTcpFlags(tcp);
-    uint32_t remoteSeq = ntohl(tcp->sequenceNumber);
-    uint32_t remoteAck = ntohl(tcp->acknowledgementNumber);
-    uint16_t dataLen = getTcpDataLength(ip, tcp);
+    uint16_t flags = getTcpFlags(tcp); //what kind of msg
+    uint32_t remoteSeq = ntohl(tcp->sequenceNumber); // what sentence is sender on 
+    uint32_t remoteAck = ntohl(tcp->acknowledgementNumber); //sent 500 we get 501 
+    uint16_t dataLen = getTcpDataLength(ip, tcp); //datalen > 0 broker sent us a message 
 
     socket *ms = getMqttSocket();
 
-    // Only process packets that belong to our MQTT connection
+    // Only process packets that belong to our MQTT connection liek 49152 port and not 80 
     if (ntohs(tcp->destPort) != ms->localPort)
         return;
 
@@ -328,17 +328,17 @@ void processTcpResponse(etherHeader *ether)
             if ((flags & SYN) && (flags & ACK))
             {
                 // Populate socket with server's HW/IP info from this packet
-                getSocketInfoFromTcpPacket(ether, ms);
+                getSocketInfoFromTcpPacket(ether, ms); //get broker mac and ip address and save it 
                 ms->acknowledgementNumber = remoteSeq + 1;   // ACK their SYN
                 ms->sequenceNumber = remoteAck;               // Our next seq = their ACK
 
                 // Send ACK to complete the 3-way handshake
                 sendTcpResponse(ether, ms, ACK);
 
-                ms->state = TCP_ESTABLISHED;
+                ms->state = TCP_ESTABLISHED; //connected 
                 putsUart0("TCP: Established\n");
 
-                // TCP is up — now send the MQTT CONNECT packet
+                // TCP is up 
                 sendMqttConnect(ether);
             }
             else if (flags & RST)
@@ -349,13 +349,13 @@ void processTcpResponse(etherHeader *ether)
             break;
 
         case TCP_ESTABLISHED:
-            if (flags & RST)
+            if (flags & RST) //broker crashed 
             {
                 ms->state = TCP_CLOSED;
                 putsUart0("TCP: Reset by peer\n");
                 break;
             }
-            if (flags & FIN)
+            if (flags & FIN) //broker wants to disconnect 
             {
                 // Passive close — the broker wants to disconnect
                 ms->acknowledgementNumber = remoteSeq + 1;

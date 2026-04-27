@@ -1,6 +1,6 @@
 // IP Library
 // Jason Losh
-
+// Koshish and Pranjal Project
 //-----------------------------------------------------------------------------
 // Hardware Target
 //-----------------------------------------------------------------------------
@@ -28,7 +28,7 @@ uint8_t ipSubnetMask[IP_ADD_LENGTH] = {255, 255, 255, 0};
 uint8_t ipGwAddress[IP_ADD_LENGTH] = {192, 168, 1, 1};
 uint8_t ipDnsAddress[IP_ADD_LENGTH] = {0,0,0,0};
 uint8_t ipTimeServerAddress[IP_ADD_LENGTH] = {0,0,0,0};
-uint8_t ipMqttBrokerAddress[IP_ADD_LENGTH] = {192, 168, 1, 59};
+uint8_t ipMqttBrokerAddress[IP_ADD_LENGTH] = {192, 168, 1, 131};
 
 
 // ------------------------------------------------------------------------------
@@ -195,7 +195,6 @@ void sumIpWords(void* data, uint16_t sizeInBytes, uint32_t* sum)
     }
 }
 
-// Completes 1's compliment addition by folding carries back into field
 uint16_t getIpChecksum(uint32_t sum)
 {
     uint16_t result;
