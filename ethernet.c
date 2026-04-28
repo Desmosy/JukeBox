@@ -480,7 +480,7 @@ void processShell()
                 }
                 else if (token != NULL && strcmp(token, "reset") == 0)
                 {
-                    resetVotes();
+                    resetVotes(true);
                     putsUart0("Music: Votes reset\n");
                 }
                 else

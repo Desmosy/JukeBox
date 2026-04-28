@@ -46,7 +46,7 @@ const char* getSongName(uint8_t songIndex);
 // Voting
 void castVote(uint8_t songNumber);
 uint8_t getVoteCount(uint8_t songIndex);
-void resetVotes();
+void resetVotes(bool publishMqttMsg);
 uint8_t tallyVotes();
 bool isVotingLocked();
 bool isVotingActive();

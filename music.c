@@ -99,7 +99,7 @@ uint8_t getVoteCount(uint8_t songIndex)
 }
 
 // Reset all votes for a new round (unlocks voting)
-void resetVotes()
+void resetVotes(bool publishMqttMsg)
 {
     uint8_t i;
     for (i = 0; i < NUM_SONGS; i++)
@@ -110,7 +110,10 @@ void resetVotes()
     lastWinner = 0;
 
     // Publish music_stop so the Python script stops playing
-    publishMqtt("music_stop", "");
+    if (publishMqttMsg)
+    {
+        publishMqtt("music_stop", "");
+    }
     putsUart0("STOP\n");
 }
 
@@ -159,7 +162,7 @@ void voteTimerCallback()
     if (winner == 0)
     {
         putsUart0("Music: No votes received.\n");
-        resetVotes();
+        resetVotes(true);
         return;
     }
 

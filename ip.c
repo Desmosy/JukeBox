@@ -23,7 +23,7 @@
 //  Globals
 // ------------------------------------------------------------------------------
 
-uint8_t ipAddress[IP_ADD_LENGTH] = {192, 168, 1, 100};
+uint8_t ipAddress[IP_ADD_LENGTH] = {192, 168, 1, 130};
 uint8_t ipSubnetMask[IP_ADD_LENGTH] = {255, 255, 255, 0};
 uint8_t ipGwAddress[IP_ADD_LENGTH] = {192, 168, 1, 1};
 uint8_t ipDnsAddress[IP_ADD_LENGTH] = {0,0,0,0};

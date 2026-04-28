@@ -513,7 +513,7 @@ void processMqttResponse(etherHeader *ether, uint8_t *data, uint16_t length)
             }
             else if (strcmp(topic, "music_stop") == 0 || strcmp(topic, "music_reset") == 0)
             {
-                resetVotes();
+                resetVotes(false);
             }
 
             // If QoS 1, send PUBACK
